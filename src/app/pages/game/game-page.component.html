@@ -1,0 +1,78 @@
+<div class="row">
+  <div class="col-md-12">
+    <div class="card vh-100 w-100">
+      <div class="card-header">
+        <div class="row">
+          <div class="col-8">
+            <h5 class="card-title">Rodada número {{ gameDetails.roundNumber }}</h5>
+          </div>
+          <div class="col-4">
+            <h2>{{connected ? 'Connectado' : 'Disconectado'}}</h2>
+          </div>
+        </div>
+        <p class="card-category"> A palavra é:
+          <span class="current-word">{{ gameDetails.currentWord }}</span>
+        </p>
+      </div>
+      <div class="card-body">
+        <div class="row d-flex justify-content-center">
+          <div class="col-md-6 d-flex justify-content-center align-content-center bg-secondary text-white">
+            <p class="align-self-center">IA: {{ gameDetails.score.ia }}</p>
+          </div>
+        </div>
+        <div class="row h-50">
+          <div class="col-md-6 d-flex justify-content-center align-content-center bg-primary text-white">
+            <p class="align-self-center">Acho que é: {{ guessess.player1 }}</p>
+          </div>
+          <div class="col-md-6 d-flex justify-content-center align-content-center bg-primary text-white">
+            <p class="align-self-center">Acho que é: {{ guessess.player2 }}</p>
+          </div>
+
+          <!-- Player scores -->
+          <div class="col-md-6 d-flex justify-content-center align-content-center">
+            <p class="align-self-center">Player 1: {{ gameDetails.score.player1 }} pontos</p>
+          </div>
+          <div class="col-md-6 d-flex justify-content-center align-content-center">
+            <p class="align-self-center">Player 2: {{ gameDetails.score.player2 }} pontos</p>
+          </div>
+          <!-- Inputs for the game -->
+          <div class="row h-50">
+            <div class="col-md-5">
+              <div class="row h-50">
+              <textarea title="Jogador 1 mensagens" rows="75" cols="50" [value]="chatPlayer1" class="form-control h-75"
+                        style="height: 500px;resize: vertical" disabled>
+
+              </textarea>
+              </div>
+              <div class="row">
+                <div class="col-6">
+                  <input type="text" name="tipPlayer1" placeholder="Dica" class="form-control" [(ngModel)]="messagePlayer1">
+                </div>
+                <div class="col-5 offset-md-1">
+                  <button class="btn btn-primary col-6" (click)="sendTipMessage('player1')">Enviar</button>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-5 offset-md-1">
+
+              <div class="row h-50">
+              <textarea rows="50" cols="50" [value]="chatPlayer2" class="form-control h-75" disabled>
+
+              </textarea>
+              </div>
+              <div class="row">
+                <div class="col-6">
+                  <input type="text" name="tipPlayer1" placeholder="Dica" class="form-control" [(ngModel)]="messagePlayer2">
+                </div>
+                <div class="col-6">
+                  <button class="btn btn-primary col-6" (click)="sendTipMessage('player2')">Enviar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

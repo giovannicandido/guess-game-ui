@@ -1,0 +1,34 @@
+<form class="row g-3 needs-validation" (ngSubmit)="startGame()">
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card card-chart">
+        <div class="card-header">
+          <h5 class="card-title">Iniciar novo jogo</h5>
+          <p class="card-category">Qual a palavra do jogo?</p>
+        </div>
+        <div class="card-body">
+          <input type="text" id="validationGameWord" class="form-control" placeholder="Palavra" required name="gameWord" [(ngModel)]="gameWord">
+          <div class="invalid-feedback">
+            Entre uma palavra para iniciar o jogo
+          </div>
+          <div class="position-relative">
+            <div class="position-absolute top-50 start-50">
+              <button type="submit" class="btn btn-primary">Iniciar Jogo</button>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="chart-legend">
+            <i class="fa fa-circle text-info"></i> Jogos ativos
+          </div>
+          <hr/>
+          <div class="card-stats">
+            <ul>
+              <li>Test</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
