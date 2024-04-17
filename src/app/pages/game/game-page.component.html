@@ -4,14 +4,14 @@
       <div class="card-header">
         <div class="row">
           <div class="col-8">
-            <h5 class="card-title">Rodada número {{ gameDetails.roundNumber }}</h5>
+            <h5 class="card-title">Rodada número {{ gameDetails.currentRoundNumber }}</h5>
           </div>
           <div class="col-4">
-            <h2>{{connected ? 'Connectado' : 'Disconectado'}}</h2>
+            <h2>{{ connected ? 'Connectado' : 'Disconectado' }}</h2>
           </div>
         </div>
         <p class="card-category"> A palavra é:
-          <span class="current-word">{{ gameDetails.currentWord }}</span>
+          <span class="current-word">{{ gameDetails.guessWord }}</span>
         </p>
       </div>
       <div class="card-body">
@@ -30,47 +30,65 @@
 
           <!-- Player scores -->
           <div class="col-md-6 d-flex justify-content-center align-content-center">
-            <p class="align-self-center">Player 1: {{ gameDetails.score.player1 }} pontos</p>
+            <p class="align-self-center">Player 1: {{ gameDetails.score.playerScores[PLAYER_1_ID] }} pontos</p>
           </div>
           <div class="col-md-6 d-flex justify-content-center align-content-center">
-            <p class="align-self-center">Player 2: {{ gameDetails.score.player2 }} pontos</p>
+            <p class="align-self-center">Player 2: {{ gameDetails.score.playerScores[PLAYER_2_ID] }} pontos</p>
           </div>
           <!-- Inputs for the game -->
-          <div class="row h-50">
+          <div class="row">
             <div class="col-md-5">
-              <div class="row h-50">
-              <textarea title="Jogador 1 mensagens" rows="75" cols="50" [value]="chatPlayer1" class="form-control h-75"
-                        style="height: 500px;resize: vertical" disabled>
-
-              </textarea>
+              <div class="row">
+                <div class="chat-messages" id="player1-messages">
+                  <div class="alert alert-secondary" role="alert" *ngFor="let m of chats.player1">
+                    {{ m }}
+                  </div>
+                </div>
               </div>
               <div class="row">
                 <div class="col-6">
-                  <input type="text" name="tipPlayer1" placeholder="Dica" class="form-control" [(ngModel)]="messagePlayer1">
+                  <input type="text" name="tipPlayer1" placeholder="Dica" class="form-control"
+                         [(ngModel)]="messagePlayer1">
                 </div>
                 <div class="col-5 offset-md-1">
-                  <button class="btn btn-primary col-6" (click)="sendTipMessage('player1')">Enviar</button>
+                  <button class="btn btn-primary col-6" (click)="sendTipMessage('player1')" [disabled]="roundFinished">
+                    Enviar
+                  </button>
                 </div>
               </div>
             </div>
             <div class="col-md-5 offset-md-1">
 
-              <div class="row h-50">
-              <textarea rows="50" cols="50" [value]="chatPlayer2" class="form-control h-75" disabled>
-
-              </textarea>
+              <div class="row">
+                <div class="chat-messages" id="player2-messages">
+                  <div class="alert alert-secondary" role="alert" *ngFor="let m of chats.player2">
+                    {{ m }}
+                  </div>
+                </div>
               </div>
               <div class="row">
                 <div class="col-6">
-                  <input type="text" name="tipPlayer1" placeholder="Dica" class="form-control" [(ngModel)]="messagePlayer2">
+                  <input type="text" name="tipPlayer1" placeholder="Dica" class="form-control"
+                         [(ngModel)]="messagePlayer2">
                 </div>
                 <div class="col-6">
-                  <button class="btn btn-primary col-6" (click)="sendTipMessage('player2')">Enviar</button>
+                  <button class="btn btn-primary col-6" (click)="sendTipMessage('player2')" [disabled]="roundFinished">
+                    Enviar
+                  </button>
                 </div>
               </div>
             </div>
-          </div>
+            <div *ngIf="roundFinished">
+              <div class="col-6">
+                <input type="text" name="tipPlayer1" placeholder="Dica" class="form-control"
+                       [(ngModel)]="newGuessWord">
+              </div>
+              <div class="col-6">
 
+                <button class="btn btn-primary" (click)="starNewRound()">Novo jogo</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

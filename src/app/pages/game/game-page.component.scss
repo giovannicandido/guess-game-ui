@@ -4,3 +4,8 @@
   color: #3152ce;
   margin-right: 400px;
 }
+
+.chat-messages {
+  overflow-y: scroll;
+  max-height: 400px;
+}

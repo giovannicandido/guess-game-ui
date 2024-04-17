@@ -2,15 +2,15 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute } from "@angular/router";
 import { ToastrService } from "ngx-toastr";
 import { Chat, GuessChatRequest } from "../../model/game";
-import { Client, Message, Stomp } from '@stomp/stompjs';
 import { environment } from "../../../environments/environment";
 import { RxStomp, RxStompState } from "@stomp/rx-stomp";
 import { Subscription } from "rxjs";
-import { error } from "@angular/compiler-cli/src/transformers/util";
+import { HttpClient } from "@angular/common/http";
 
 // todo check https://www.baeldung.com/spring-websockets-send-message-to-user
 const PLAYER_1_ID = "aeb9cfac-340b-4300-9c3e-2c7110311ced"
 const PLAYER_2_ID = "8cb84bb7-9a97-4d58-91bc-354b3668a97a"
+
 @Component({
   selector: 'app-game-page',
   styleUrls: ['./game-page.component.scss'],
@@ -20,43 +20,66 @@ const PLAYER_2_ID = "8cb84bb7-9a97-4d58-91bc-354b3668a97a"
 export class GamePageComponent implements OnInit, OnDestroy {
 
   gameId: string;
-  private stompClient: Client;
   private rxStomp: RxStomp
 
   connected = false;
 
-  subscriptions: Subscription[] = []
+  roundFinished = false
 
+  newGuessWord = ""
+
+  subscriptions: Subscription[] = []
+// {
+//   "guessWord": "aba",
+//   "gameID": "game1",
+//   "timeDuration": "PT5M",
+//   "numberOfRounds": 2,
+//   "currentRoundNumber": 2,
+//   "playerIDs": [
+//     "aeb9cfac-340b-4300-9c3e-2c7110311ced",
+//     "8cb84bb7-9a97-4d58-91bc-354b3668a97a"
+//   ],
+//   "score": {
+//     "ia": 0,
+//     "playerScores": {
+//       "8cb84bb7-9a97-4d58-91bc-354b3668a97a": 0,
+//       "aeb9cfac-340b-4300-9c3e-2c7110311ced": 1
+//     }
+//   }
+// }
   gameDetails = {
-    roundNumber: 1,
-    currentWord: "teste",
+    currentRoundNumber: 1,
+    guessWord: "",
+    timeDuration: "PT5M",
+    numberOfRounds: 1,
     score: {
       ia: 0,
-      player1: 1,
-
-      player2: 2,
+      playerScores: {
+        PLAYER_1_ID: 0,
+        PLAYER_2_ID: 0
+      }
     }
   }
 
   guessess = {
-    player1: "pássaro",
-    player2: "aviao"
+    player1: "",
+    player2: ""
   }
 
   chats: Chat = {
-    player1: ["try 1", "try 2", "try 3"],
-    player2: ["try 1", "try 2", "try 3"],
+    player1: [],
+    player2: [],
   }
 
   messagePlayer1 = "";
   messagePlayer2 = "";
 
-  constructor(private activeRouter: ActivatedRoute, private toastr: ToastrService) {
+  constructor(private activeRouter: ActivatedRoute, private toastr: ToastrService, private http: HttpClient) {
     this.gameId = activeRouter.snapshot.params['gameID']
-    function websocketFactory () {
+
+    function websocketFactory() {
       return new WebSocket(`${environment.BACKEND_WS}/game-ws`)
     }
-    this.stompClient = Stomp.over(websocketFactory)
 
     this.rxStomp = new RxStomp();
     this.rxStomp.configure({
@@ -64,20 +87,13 @@ export class GamePageComponent implements OnInit, OnDestroy {
     });
   }
 
-  get chatPlayer1(): string {
-    return this.chats.player1.join('\n');
-  }
-
-  get chatPlayer2(): string {
-    return this.chats.player1.join('\n');
-  }
-
   ngOnInit() {
     if (!this.checkGameId()) {
       return
     }
     // this.initiateStompConnection()
-    this.initiateStompConnection()
+    this.initRxStompConnection()
+    this.loadCurrentGameDetails()
   }
 
   async ngOnDestroy(): Promise<void> {
@@ -109,9 +125,10 @@ export class GamePageComponent implements OnInit, OnDestroy {
     })
 
     const sub3 = this.rxStomp.connectionState$.subscribe(state => {
-      console.log(state);
+      console.log(`websocket change state: ${state}`);
       switch (state) {
-        case RxStompState.CLOSED: this.connected = false
+        case RxStompState.CLOSED:
+          this.connected = false
           break
       }
     })
@@ -123,51 +140,54 @@ export class GamePageComponent implements OnInit, OnDestroy {
     this.rxStomp.activate()
 
     const sub5 = this.rxStomp
-      .watch({destination: `/chats/${this.gameId}`})
-      .subscribe((message) => console.log(message.body));
+      .watch({destination: `/games/chats/${this.gameId}`})
+      .subscribe((message) => this.onNewChatMessage(message.body));
+
+    const sub6 = this.rxStomp
+      .watch({destination: `/games/updates/ia-guess/${this.gameId}`})
+      .subscribe(message => this.onGuessGameMessage(message.body));
+
+    const sub7 = this.rxStomp
+      .watch({destination: `/games/updates/win/${this.gameId}`})
+      .subscribe(message => this.onGameWin(message.body));
+
+    const sub8 = this.rxStomp
+      .watch({destination: `/games/updates/new-round/${this.gameId}`})
+      .subscribe(message => this.onNewGame(message.body));
 
     this.subscriptions.push(sub1)
     this.subscriptions.push(sub2)
     this.subscriptions.push(sub3)
     this.subscriptions.push(sub4)
     this.subscriptions.push(sub5)
+    this.subscriptions.push(sub6)
+    this.subscriptions.push(sub7)
   }
 
-  private initiateStompConnection() {
-
-    this.stompClient.onConnect = (frame) => {
-      this.connected = true;
-      console.log('Connected: ' + frame);
-      this.stompClient.subscribe(`/games/chats/${this.gameId}`, (chat) => {
-        console.log('Chat message received')
-        this.onNewChatMessage(JSON.parse(chat.body));
-      });
-    };
-
-    this.stompClient.onWebSocketError = (error) => {
-      console.error('Error with websocket', error);
-    };
-
-    this.stompClient.onStompError = (frame) => {
-      console.error('Broker reported error: ' + frame.headers['message']);
-      console.error('Additional details: ' + frame.body);
-    };
-
-    this.stompClient.onDisconnect = (frame) => {
-      this.connected = false;
-      console.error('Disconnected: ' + frame.body);
-    };
-
-    this.stompClient.activate()
-    window['stompClient'] = this.stompClient;
-  }
-
-  onNewChatMessage(message: any) {
+  onNewChatMessage(messageString: string) {
+    const message = JSON.parse(messageString);
+    if (message.userId === PLAYER_1_ID) {
+      this.chats.player1.push(message.message)
+      this.scrollMessage('player1-messages')
+    } else if (message.userId === PLAYER_2_ID) {
+      this.chats.player2.push(message.message)
+      this.scrollMessage('player2-messages')
+    }
     console.log(message);
   }
 
+  onGuessGameMessage(messageString: string) {
+    console.log('Guess game')
+    const guess = JSON.parse(messageString);
+    console.log(guess);
+    if (guess.playerId === PLAYER_1_ID) {
+      this.guessess.player1 = guess.guess;
+    } else if (guess.playerId === PLAYER_2_ID) {
+      this.guessess.player2 = guess.guess;
+    }
+  }
+
   async disconnect() {
-    await this.stompClient.deactivate();
     await this.rxStomp.deactivate();
     this.subscriptions.forEach((sub) => sub.unsubscribe())
     this.connected = false;
@@ -192,15 +212,21 @@ export class GamePageComponent implements OnInit, OnDestroy {
 
   publishTipMessage(playerId: string, message: string) {
     const chatRequest = new GuessChatRequest(playerId, this.gameId, message)
-    // this.stompClient.publish({
-    //   destination: `/app/chats/${this.gameId}`,
-    //   body: JSON.stringify(chatRequest)
-    // });
-    this.stompClient.publish({
+    this.rxStomp.publish({
         destination: `/app/games/chats/${this.gameId}`,
         body: JSON.stringify(chatRequest)
       }
     )
+  }
+
+  scrollMessage(chatId: string) {
+    setInterval(() => {
+      const element = document.getElementById(chatId)
+      if (element !== null) {
+        element.scrollTop = element.scrollHeight
+      }
+    }, 300)
+
   }
 
   validMessage(message: string) {
@@ -220,4 +246,78 @@ export class GamePageComponent implements OnInit, OnDestroy {
     return valid;
   }
 
+  private onGameWin(body: string) {
+    console.log('Game Win Event')
+    const message = JSON.parse(body);
+    console.log(message)
+    this.roundFinished = true
+    if (message.winner === PLAYER_1_ID) {
+      this.gameDetails.score.playerScores[PLAYER_1_ID] = message.score;
+      this.toastr.success(
+        '<span data-notify="icon" class="nc-icon nc-bell-55"></span><span data-notify="message">Parabéns! Player 1 ganhou o jogo!</span>',
+        "",
+        {
+          timeOut: 4000,
+          enableHtml: true,
+          closeButton: true,
+          toastClass: "alert alert-success alert-with-icon",
+        }
+      );
+    } else if (message.winner === PLAYER_2_ID) {
+      this.gameDetails.score.playerScores[PLAYER_2_ID] = message.score;
+      this.toastr.info(
+        '<span data-notify="icon" class="nc-icon nc-bell-55"></span><span data-notify="message">Player 2 ganhou o jogo!</span>',
+        "",
+        {
+          timeOut: 4000,
+          enableHtml: true,
+          closeButton: true,
+          toastClass: "alert alert-info alert-with-icon",
+        }
+      );
+    } else {
+      this.gameDetails.score.ia = message.score;
+      this.toastr.warning(
+        '<span data-notify="icon" class="nc-icon nc-bell-55"></span><span data-notify="message">O jogo terminou em empate ponto para IA!</span>',
+        "",
+        {
+          timeOut: 4000,
+          enableHtml: true,
+          closeButton: true,
+          toastClass: "alert alert-warning alert-with-icon",
+        }
+      );
+    }
+  }
+
+  private onNewGame(body: string) {
+    const message = JSON.parse(body);
+    console.log(message)
+    this.gameDetails = message.gameDetails;
+    this.roundFinished = false
+    this.chats.player1 = []
+    this.chats.player2 = []
+  }
+
+  starNewRound() {
+    if (!this.validMessage(this.newGuessWord)) {
+      return;
+    }
+
+    this.http.post(`${environment.BACKEND_URL}/api/v0/games/${this.gameId}/actions/start-round`, {guessWord: this.newGuessWord})
+      .subscribe()
+
+  }
+
+  protected readonly PLAYER_1_ID = PLAYER_1_ID;
+  protected readonly PLAYER_2_ID = PLAYER_2_ID;
+
+  private loadCurrentGameDetails() {
+    this.http.get<any>(`${environment.BACKEND_URL}/api/v0/games/${this.gameId}`)
+      .subscribe(value => {
+        console.log('load game details')
+        console.log(value)
+        this.gameDetails = value
+      })
+  }
 }
