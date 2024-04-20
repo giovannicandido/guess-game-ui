@@ -1,34 +1,57 @@
-<form class="row g-3 needs-validation" (ngSubmit)="startGame()">
+<form class="needs-validation" (ngSubmit)="startGame()">
   <div class="row">
     <div class="col-md-12">
       <div class="card card-chart">
         <div class="card-header">
           <h5 class="card-title">Iniciar novo jogo</h5>
+          <div class="alert alert-warning">
+            Todos os jogos abertos a mais de 20 minutos serão removidos.
+          </div>
           <p class="card-category">Qual a palavra do jogo?</p>
         </div>
         <div class="card-body">
-          <input type="text" id="validationGameWord" class="form-control" placeholder="Palavra" required name="gameWord" [(ngModel)]="gameWord">
+          <select class="form-select" aria-label="Categoria" name="gameCategory" [(ngModel)]="gameCategory">
+            <option selected>Selecione uma categoria</option>
+            <option value="FUTEBOL">Futebol</option>
+            <option value="PALAVRA_GENERICA">Palavra Genérica</option>
+            <option value="FILMES">Filmes</option>
+            <option value="ARTISTAS">Artistas</option>
+          </select>
+          <input type="text" id="validationGameWord" class="form-control" placeholder="Palavra" required name="gameWord"
+                 [(ngModel)]="gameWord">
           <div class="invalid-feedback">
             Entre uma palavra para iniciar o jogo
           </div>
           <div class="position-relative">
-            <div class="position-absolute top-50 start-50">
+            <div class="top-50 start-50">
               <button type="submit" class="btn btn-primary">Iniciar Jogo</button>
             </div>
-          </div>
-        </div>
-        <div class="card-footer">
-          <div class="chart-legend">
-            <i class="fa fa-circle text-info"></i> Jogos ativos
-          </div>
-          <hr/>
-          <div class="card-stats">
-            <ul>
-              <li>Test</li>
-            </ul>
           </div>
         </div>
       </div>
     </div>
   </div>
 </form>
+<div class="row">
+  <div class="col-md-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="chart-legend">
+          <i class="fa fa-circle text-info"></i> Jogos ativos
+        </div>
+        <hr/>
+        <div class="card-stats">
+          <ul>
+            <li *ngFor="let game of currentGames | async">
+              ID: <a routerLink="/games/{{game.gameID}}" >{{ game.gameID }}</a> - {{ game.guessWord }}
+              Rodada {{ game.currentRoundNumber }}, Iniciado em: {{ game.startTime | date:'full'}}
+              <button class="btn btn-primary" (click)="removeGame(game.gameID)">Remover Game</button>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+

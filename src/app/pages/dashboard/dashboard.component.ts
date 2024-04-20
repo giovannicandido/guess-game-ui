@@ -4,6 +4,7 @@ import { Router } from "@angular/router";
 import { ToastrService } from "ngx-toastr";
 import { NewGameResponse } from "../../model/new-game-response";
 import { environment } from "../../../environments/environment";
+import { EMPTY, Observable } from "rxjs";
 
 @Component({
   selector: 'dashboard-cmp',
@@ -13,6 +14,9 @@ import { environment } from "../../../environments/environment";
 export class DashboardComponent implements OnInit {
 
   gameWord = ""
+  gameCategory = "PALAVRA_GENERICA"
+
+  currentGames: Observable<Array<any>> = EMPTY
 
   constructor(private http: HttpClient, private router: Router, private toastr: ToastrService) {
 
@@ -20,12 +24,13 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit(): void {
     this.boostrapValidaitonsSetup();
+    this.loadActiveGames()
   }
 
   startGame(): void {
-    if(this.gameWord.trim() === "") {
+    if(this.gameWord.trim() === "" || this.gameCategory.trim() === "") {
       this.toastr.warning(
-        '<span data-notify="icon" class="nc-icon nc-bell-55"></span><span data-notify="message">Digite uma <b>palavra</b> para iniciar um jogo<b>.</span>',
+        '<span data-notify="icon" class="nc-icon nc-bell-55"></span><span data-notify="message">Digite uma <b>palavra</b> e <b>categoria</b> para iniciar um jogo<b>.</span>',
         "",
         {
           timeOut: 4000,
@@ -37,14 +42,16 @@ export class DashboardComponent implements OnInit {
       return;
     }
 
-    this.http.post<NewGameResponse>(`${environment.BACKEND_URL}/api/v0/games`, { guessWord: this.gameWord }).subscribe(
+    this.http.post<NewGameResponse>(`${environment.BACKEND_URL}/api/v0/games`, { guessWord: this.gameWord, gameCategory: this.gameCategory }).subscribe(
       (response) => {
         this.router.navigate(["/games", response.gameID]);
       }
     );
   }
 
-
+  loadActiveGames() {
+    this.currentGames = this.http.get<any[]>(`${environment.BACKEND_URL}/api/v0/games`)
+  }
 
   boostrapValidaitonsSetup() {
     const forms: any = document.querySelectorAll('.needs-validation')
@@ -62,4 +69,9 @@ export class DashboardComponent implements OnInit {
     })
   }
 
+  removeGame(id: string) {
+    this.http.delete(`${environment.BACKEND_URL}/api/v0/games/${id}`).subscribe(
+      (_) => this.loadActiveGames()
+    )
+  }
 }

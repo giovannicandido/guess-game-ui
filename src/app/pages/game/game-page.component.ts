@@ -94,6 +94,7 @@ export class GamePageComponent implements OnInit, OnDestroy {
     // this.initiateStompConnection()
     this.initRxStompConnection()
     this.loadCurrentGameDetails()
+    this.loadChatHistory()
   }
 
   async ngOnDestroy(): Promise<void> {
@@ -319,5 +320,13 @@ export class GamePageComponent implements OnInit, OnDestroy {
         console.log(value)
         this.gameDetails = value
       })
+  }
+
+  private loadChatHistory() {
+    this.http.get<any[]>(`${environment.BACKEND_URL}/api/v0/games/${this.gameId}/chats`)
+      .subscribe((chats ) => {
+        this.chats.player1 = chats.find(c => c.playerId === PLAYER_1_ID).messages
+        this.chats.player2 = chats.find(c => c.playerId === PLAYER_2_ID).messages
+      });
   }
 }
