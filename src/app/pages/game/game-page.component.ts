@@ -77,13 +77,9 @@ export class GamePageComponent implements OnInit, OnDestroy {
   constructor(private activeRouter: ActivatedRoute, private toastr: ToastrService, private http: HttpClient) {
     this.gameId = activeRouter.snapshot.params['gameID']
 
-    function websocketFactory() {
-      return new WebSocket(`${environment.BACKEND_WS}/game-ws`)
-    }
-
     this.rxStomp = new RxStomp();
     this.rxStomp.configure({
-      brokerURL: `${environment.BACKEND_WS}/game-ws`,
+      brokerURL: `${environment.BACKEND_WS}/api/game-ws`,
     });
   }
 
