@@ -1,0 +1,131 @@
+name: PR Build
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - main
+env:
+  cache-name: cache-node-modules
+jobs:
+  install-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      - name: Setup NodeJS
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Store pnpm-lock.yaml
+        uses: actions/upload-artifact@v3
+        with:
+          name: cache-lock
+          if-no-files-found: error
+          path: |
+            pnpm-lock.yaml
+  test:
+    runs-on: ubuntu-latest
+    needs: install-dependencies
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download cache lock
+        uses: actions/download-artifact@v3
+        with:
+          name: cache-lock
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      - name: Setup NodeJS
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Test
+        run: pnpm run test-ci
+      - name: Upload test results and reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-reports
+          if-no-files-found: error
+          path: |
+            build/
+  build:
+    runs-on: ubuntu-latest
+    needs: install-dependencies
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download cache lock
+        uses: actions/download-artifact@v3
+        with:
+          name: cache-lock
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      - name: Setup NodeJS
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Build
+        run: pnpm run build-hom
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: artifacts
+          if-no-files-found: error
+          path: |
+            dist/
+  lint:
+    runs-on: ubuntu-latest
+    needs: install-dependencies
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download cache lock
+        uses: actions/download-artifact@v3
+        with:
+          name: cache-lock
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      - name: Setup NodeJS
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Build
+        run: pnpm run lint
+  test-coverage-report:
+    runs-on: ubuntu-latest
+    needs: test
+    env:
+      DEEPSOURCE_DSN: ${{ secrets.DEEPSOURCE_DSN }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-reports
+          path: ./build/
+      - name: Report test-coverage to DeepSource
+        run: |
+          # Install the CLI
+          curl https://deepsource.io/cli | sh
+
+          # Send the report to DeepSource
+          ./bin/deepsource report --analyzer test-coverage --key javascript --value-file build/coverage/cobertura/cobertura-coverage.xml
+
+

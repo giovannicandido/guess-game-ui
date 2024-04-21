@@ -1,0 +1,15 @@
+name: Clean Pre Releases
+on:
+  schedule:
+    # Every monday, wednesday and friday at 9:30
+    - cron:  '30 9 * * 1,3,5'
+
+jobs:
+  clean-prerelease:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean all pre release older then 20 days, keep the last 2
+        uses: giovannicandido/github-action-clean-releases@main
+        with:
+          numberDaysToKeep: 20
+          numberToKeep: 4

@@ -1,0 +1,322 @@
+name: Release to Staging
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+env:
+  cache-name: cache-node-modules
+  IMAGE_NAME: guess-game-ui
+  REGISTRY_DOMAIN: ${{ vars.REGISTRY_DOMAIN }}
+  REGISTRY_URL: ${{ vars.REGISTRY_URL }}
+  WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id}}
+  WORKFLOW_REF: build ${{ github.run_id }} on ${{ github.ref_name }}
+jobs:
+  install-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify deployment start
+        uses: zulip/github-actions-zulip/send-message@v1
+        with:
+          api-key: ${{ secrets.ZULIP_API_KEY }}
+          email: "github-bot@zulip.kugelbit.com"
+          organization-url: "https://zulip.kugelbit.com"
+          to: "notifications"
+          type: "stream"
+          topic: "builds/${{ github.repository }}"
+          content: |
+            ```spoiler :start:  Deploy started in ${{ env.WORKFLOW_REF }}
+               Check the link [${{ env.WORKFLOW_URL }}](${{ env.WORKFLOW_URL }})
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      - name: Setup NodeJS
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Store pnpm-lock.yaml
+        uses: actions/upload-artifact@v3
+        with:
+          name: cache-lock
+          if-no-files-found: error
+          path: |
+            pnpm-lock.yaml
+  test:
+    runs-on: ubuntu-latest
+    needs: install-dependencies
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download cache lock
+        uses: actions/download-artifact@v3
+        with:
+          name: cache-lock
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      - name: Setup NodeJS
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Test
+        run: pnpm run test-ci
+      - name: Upload test results and reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-reports
+          if-no-files-found: error
+          path: |
+            build/
+  build:
+    runs-on: ubuntu-latest
+    needs: install-dependencies
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download cache lock
+        uses: actions/download-artifact@v3
+        with:
+          name: cache-lock
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      - name: Setup NodeJS
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Build
+        run: pnpm run build-hom
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: artifacts
+          if-no-files-found: error
+          path: |
+            dist/
+  lint:
+    runs-on: ubuntu-latest
+    needs: install-dependencies
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download cache lock
+        uses: actions/download-artifact@v3
+        with:
+          name: cache-lock
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      - name: Setup NodeJS
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Build
+        run: pnpm run lint
+
+  build-image:
+    runs-on: ubuntu-latest
+    needs: [ build, lint, test]
+    outputs:
+      release_tag: ${{ steps.generate_release_tag.outputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: artifacts
+          path: dist/
+      - name: Install depot
+        run: |
+          curl -L https://depot.dev/install-cli.sh | sudo env DEPOT_INSTALL_DIR=/usr/local/bin sh
+      - name: Login to OCIR
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY_DOMAIN }}
+          username: ${{ secrets.REGISTRY_USER }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      - name: Generate new version number
+        id: generate_release_tag
+        uses: giovannicandido/next-release-tag@master
+        with:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          tag_prefix: 'v'
+          use_tag: true
+      - name: Echo release version
+        run: echo $IMAGE_VERSION
+        env:
+          IMAGE_VERSION: ${{ steps.generate_release_tag.outputs.release_tag }}
+      - name: Build and tag image
+        env:
+          IMAGE_VERSION: ${{ steps.generate_release_tag.outputs.release_tag }}
+          DEPOT_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+          DEPOT_PROJECT_ID: ${{ vars.DEPOT_PROJECT_ID }}
+        run: |
+          depot build --push --platform linux/arm64,linux/amd64 -t ${REGISTRY_URL}/${IMAGE_NAME}:${IMAGE_VERSION} .
+      - name: Notify deployment failure
+        if: failure()
+        uses: zulip/github-actions-zulip/send-message@v1
+        with:
+          api-key: ${{ secrets.ZULIP_API_KEY }}
+          email: "github-bot@zulip.kugelbit.com"
+          organization-url: "https://zulip.kugelbit.com"
+          to: "notifications"
+          type: "stream"
+          topic: "builds/${{ github.repository }}"
+          content: |
+            ```spoiler :cross_mark:  Deploy failure in ${{ env.WORKFLOW_REF }} :tag: ${{ needs.build-image.outputs.release_tag }}
+               Check the link [${{ env.WORKFLOW_URL }}](${{ env.WORKFLOW_URL }})
+
+  release-code:
+    runs-on: ubuntu-latest
+    needs: [build-image]
+    permissions:
+      contents: write
+      packages: read
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.COMMIT_TOKEN }}
+      - name: Echo release version
+        run: echo $IMAGE_VERSION
+        env:
+          IMAGE_VERSION: ${{ needs.build-image.outputs.release_tag }}
+      - name: Install gettext
+        run: sudo apt-get install -y gettext
+      - name: Update README.md
+        env:
+          PROJECT_VERSION: ${{ needs.build-image.outputs.release_tag }}
+          PROJECT_CONTAINER_NAME: ${{ env.IMAGE_NAME }}
+        run: |
+          envsubst < README-template.md > README.md
+      - name: Update project version
+        run: chmod +x update-project-version.sh && ./update-project-version.sh ${{ needs.build-image.outputs.release_tag }}
+      - name: gpg sign import
+        uses: crazy-max/ghaction-import-gpg@v4
+        with:
+          gpg_private_key: ${{ secrets.GPG_SIGN_KEY }}
+          passphrase: ${{ secrets.GPG_SIGN_PASSWORD }}
+          git_config_global: true
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+      - name: Commit new project version
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Automated Change [skip ci]
+          commit_user_name: Kugelbit Github Bot
+          commit_user_email: githubbot@kugelbit.com
+      - name: Get current git commit after updated version
+        id: gitenv
+        shell: bash
+        run: |
+          echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+          echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+          echo "::set-output name=sha::$(git rev-parse HEAD)"
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          prerelease: true
+          generateReleaseNotes: true
+          commit: ${{ steps.gitenv.outputs.sha }}
+          body: |
+            ## Info
+            Commit ${{ github.sha }} was deployed to `staging`. [See code diff](${{ github.event.compare }}).
+
+            It was initialized by [${{ github.event.sender.login }}](${{ github.event.sender.html_url }}).
+
+            Staging Url: ${{ steps.pulumi.outputs.url }}
+
+            ## How to Promote?
+            In order to promote this to prod, edit the draft and press **"Publish release"**.
+          tag: ${{ needs.build-image.outputs.release_tag }}
+      - name: Notify deployment failure
+        if: failure()
+        uses: zulip/github-actions-zulip/send-message@v1
+        with:
+          api-key: ${{ secrets.ZULIP_API_KEY }}
+          email: "github-bot@zulip.kugelbit.com"
+          organization-url: "https://zulip.kugelbit.com"
+          to: "notifications"
+          type: "stream"
+          topic: "builds/${{ github.repository }}"
+          content: |
+            ```spoiler :cross_mark:  Deploy failure in ${{ env.WORKFLOW_REF }} :tag: ${{ needs.build-image.outputs.release_tag }}
+               Check the link [${{ env.WORKFLOW_URL }}](${{ env.WORKFLOW_URL }})
+  start-staging-deployment:
+    runs-on: ubuntu-latest
+    needs: [ release-code, build-image ]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout deployment code
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.COMMIT_TOKEN }}
+          fetch-depth: 0
+          repository: ${{ vars.DEPLOYMENT_REPOSITORY }}
+          ref: ${{ vars.DEPLOYMENT_REF }}
+
+      - name: Update version
+        run: ./update-version.sh mercado-ui ${{ needs.build-image.outputs.release_tag }}
+      - name: gpg sign import
+        uses: crazy-max/ghaction-import-gpg@v4
+        with:
+          gpg_private_key: ${{ secrets.GPG_SIGN_KEY }}
+          passphrase: ${{ secrets.GPG_SIGN_PASSWORD }}
+          git_config_global: true
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+      - name: Commit new project version
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Automated Change Release ${{ needs.build-image.outputs.release_tag }}
+          commit_user_name: Kugelbit Github Bot
+          commit_user_email: githubbot@kugelbit.com
+      - name: Get current git commit after updated version
+        id: gitenv
+        shell: bash
+        run: |
+          echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+          echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+          echo "::set-output name=sha::$(git rev-parse HEAD)"
+      - name: Notify deployment failure
+        if: failure()
+        uses: zulip/github-actions-zulip/send-message@v1
+        with:
+          api-key: ${{ secrets.ZULIP_API_KEY }}
+          email: "github-bot@zulip.kugelbit.com"
+          organization-url: "https://zulip.kugelbit.com"
+          to: "notifications"
+          type: "stream"
+          topic: "builds/${{ github.repository }}"
+          content: |
+            ```spoiler :cross_mark:  Deploy failure in ${{ env.WORKFLOW_REF }} :tag: ${{ needs.build-image.outputs.release_tag }}
+               Check the link [${{ env.WORKFLOW_URL }}](${{ env.WORKFLOW_URL }})
+      - name: Notify deployment finished
+        if: success()
+        uses: zulip/github-actions-zulip/send-message@v1
+        with:
+          api-key: ${{ secrets.ZULIP_API_KEY }}
+          email: "github-bot@zulip.kugelbit.com"
+          organization-url: "https://zulip.kugelbit.com"
+          to: "notifications"
+          type: "stream"
+          topic: "builds/${{ github.repository }}"
+          content: |
+            ```spoiler :check:  Deploy finished in ${{env.WORKFLOW_REF }} :tag: ${{ needs.build-image.outputs.release_tag }}
+               Check the link [${{ env.WORKFLOW_URL }}](${{ env.WORKFLOW_URL }})
