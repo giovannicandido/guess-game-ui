@@ -151,6 +151,9 @@ export class GamePageComponent implements OnInit, OnDestroy {
     const sub8 = this.rxStomp
       .watch({destination: `/games/updates/new-round/${this.gameId}`})
       .subscribe(message => this.onNewGame(message.body));
+    const sub9 = this.rxStomp
+      .watch({destination: `/games/updates/error`})
+      .subscribe(message => this.onWebsocketErrorMessage(message.body))
 
     this.subscriptions.push(sub1)
     this.subscriptions.push(sub2)
@@ -159,6 +162,8 @@ export class GamePageComponent implements OnInit, OnDestroy {
     this.subscriptions.push(sub5)
     this.subscriptions.push(sub6)
     this.subscriptions.push(sub7)
+    this.subscriptions.push(sub8)
+    this.subscriptions.push(sub9)
   }
 
   onNewChatMessage(messageString: string) {
@@ -296,6 +301,21 @@ export class GamePageComponent implements OnInit, OnDestroy {
     this.chats.player2 = []
   }
 
+  private onWebsocketErrorMessage(body: string) {
+    const message = JSON.parse(body);
+    console.log(message)
+    this.toastr.error(
+      `<span data-notify="icon" class="nc-icon nc-bell-55"></span><span data-notify="message">Ocorreu um erro no servidor: <b>${message.errorMessage}</b></span>`,
+      "",
+      {
+        timeOut: 4000,
+        enableHtml: true,
+        closeButton: true,
+        toastClass: "alert alert-warning alert-with-icon",
+      }
+    );
+  }
+
   starNewRound() {
     if (!this.validMessage(this.newGuessWord)) {
       return;
@@ -321,8 +341,8 @@ export class GamePageComponent implements OnInit, OnDestroy {
   private loadChatHistory() {
     this.http.get<any[]>(`${environment.BACKEND_URL}/api/v0/games/${this.gameId}/chats`)
       .subscribe((chats ) => {
-        this.chats.player1 = chats.find(c => c.playerId === PLAYER_1_ID).messages
-        this.chats.player2 = chats.find(c => c.playerId === PLAYER_2_ID).messages
+        this.chats.player1 = chats.find(c => c.playerId === PLAYER_1_ID)?.messages
+        this.chats.player2 = chats.find(c => c.playerId === PLAYER_2_ID)?.messages
       });
   }
 }
