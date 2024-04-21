@@ -3,7 +3,7 @@ import { HttpClient } from "@angular/common/http";
 import { Router } from "@angular/router";
 import { ToastrService } from "ngx-toastr";
 import { NewGameResponse } from "../../model/new-game-response";
-import { environment } from "../../../environments/environment";
+import { getEnvironmentConfig } from "../../shared/func-utils";
 import { EMPTY, Observable } from "rxjs";
 
 @Component({
@@ -28,7 +28,7 @@ export class DashboardComponent implements OnInit {
   }
 
   startGame(): void {
-    if(this.gameWord.trim() === "" || this.gameCategory.trim() === "") {
+    if (this.gameWord.trim() === "" || this.gameCategory.trim() === "") {
       this.toastr.warning(
         '<span data-notify="icon" class="nc-icon nc-bell-55"></span><span data-notify="message">Digite uma <b>palavra</b> e <b>categoria</b> para iniciar um jogo<b>.</span>',
         "",
@@ -42,7 +42,10 @@ export class DashboardComponent implements OnInit {
       return;
     }
 
-    this.http.post<NewGameResponse>(`${environment.BACKEND_URL}/api/v0/games`, { guessWord: this.gameWord, gameCategory: this.gameCategory }).subscribe(
+    this.http.post<NewGameResponse>(`${getEnvironmentConfig().BACKEND_URL}/api/v0/games`, {
+      guessWord: this.gameWord,
+      gameCategory: this.gameCategory
+    }).subscribe(
       (response) => {
         this.router.navigate(["/games", response.gameID]);
       }
@@ -50,7 +53,7 @@ export class DashboardComponent implements OnInit {
   }
 
   loadActiveGames() {
-    this.currentGames = this.http.get<any[]>(`${environment.BACKEND_URL}/api/v0/games`)
+    this.currentGames = this.http.get<any[]>(`${getEnvironmentConfig().BACKEND_URL}/api/v0/games`)
   }
 
   boostrapValidaitonsSetup() {
@@ -70,7 +73,7 @@ export class DashboardComponent implements OnInit {
   }
 
   removeGame(id: string) {
-    this.http.delete(`${environment.BACKEND_URL}/api/v0/games/${id}`).subscribe(
+    this.http.delete(`${getEnvironmentConfig().BACKEND_URL}/api/v0/games/${id}`).subscribe(
       (_) => this.loadActiveGames()
     )
   }

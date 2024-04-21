@@ -1,7 +1,8 @@
-import { Component, OnInit, Renderer2, ViewChild, ElementRef } from '@angular/core';
+import { Component, ElementRef, model, OnInit, Renderer2, ViewChild } from '@angular/core';
 import { ROUTES } from '../../sidebar/sidebar.component';
 import { Router } from '@angular/router';
 import { Location } from '@angular/common';
+import { ENVIRONMENT_KEY, getEnvironment, getEnvironmentConfig } from "../func-utils";
 
 @Component({
   selector: 'navbar-cmp',
@@ -14,6 +15,7 @@ export class NavbarComponent implements OnInit {
   private nativeElement: Node;
   private toggleButton;
   private sidebarVisible: boolean;
+  backendEnvironment = model<string>("PROD")
 
   public isCollapsed = true;
   @ViewChild("navbar-cmp", {static: false}) button;
@@ -31,6 +33,15 @@ export class NavbarComponent implements OnInit {
     this.router.events.subscribe((event) => {
       this.sidebarClose();
     });
+
+    const environment = getEnvironment()
+
+    this.backendEnvironment.set(environment)
+
+    this.backendEnvironment.subscribe((value) => {
+      console.log(`Mudando para ambiente: ${value}. Navegador precisa ser reiniciado`)
+      localStorage.setItem(ENVIRONMENT_KEY, value)
+    })
   }
 
   getTitle() {

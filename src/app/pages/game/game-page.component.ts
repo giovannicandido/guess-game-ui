@@ -2,7 +2,7 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute } from "@angular/router";
 import { ToastrService } from "ngx-toastr";
 import { Chat, GuessChatRequest } from "../../model/game";
-import { environment } from "../../../environments/environment";
+import { getEnvironmentConfig } from "../../shared/func-utils";
 import { RxStomp, RxStompState } from "@stomp/rx-stomp";
 import { Subscription } from "rxjs";
 import { HttpClient } from "@angular/common/http";
@@ -29,24 +29,6 @@ export class GamePageComponent implements OnInit, OnDestroy {
   newGuessWord = ""
 
   subscriptions: Subscription[] = []
-// {
-//   "guessWord": "aba",
-//   "gameID": "game1",
-//   "timeDuration": "PT5M",
-//   "numberOfRounds": 2,
-//   "currentRoundNumber": 2,
-//   "playerIDs": [
-//     "aeb9cfac-340b-4300-9c3e-2c7110311ced",
-//     "8cb84bb7-9a97-4d58-91bc-354b3668a97a"
-//   ],
-//   "score": {
-//     "ia": 0,
-//     "playerScores": {
-//       "8cb84bb7-9a97-4d58-91bc-354b3668a97a": 0,
-//       "aeb9cfac-340b-4300-9c3e-2c7110311ced": 1
-//     }
-//   }
-// }
   gameDetails = {
     currentRoundNumber: 1,
     guessWord: "",
@@ -79,7 +61,7 @@ export class GamePageComponent implements OnInit, OnDestroy {
 
     this.rxStomp = new RxStomp();
     this.rxStomp.configure({
-      brokerURL: `${environment.BACKEND_WS}/api/game-ws`,
+      brokerURL: `${getEnvironmentConfig().BACKEND_WS}/api/game-ws`,
     });
   }
 
@@ -321,7 +303,7 @@ export class GamePageComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.http.post(`${environment.BACKEND_URL}/api/v0/games/${this.gameId}/actions/start-round`, {guessWord: this.newGuessWord})
+    this.http.post(`${getEnvironmentConfig().BACKEND_URL}/api/v0/games/${this.gameId}/actions/start-round`, {guessWord: this.newGuessWord})
       .subscribe()
 
   }
@@ -330,7 +312,7 @@ export class GamePageComponent implements OnInit, OnDestroy {
   protected readonly PLAYER_2_ID = PLAYER_2_ID;
 
   private loadCurrentGameDetails() {
-    this.http.get<any>(`${environment.BACKEND_URL}/api/v0/games/${this.gameId}`)
+    this.http.get<any>(`${getEnvironmentConfig().BACKEND_URL}/api/v0/games/${this.gameId}`)
       .subscribe(value => {
         console.log('load game details')
         console.log(value)
@@ -339,7 +321,7 @@ export class GamePageComponent implements OnInit, OnDestroy {
   }
 
   private loadChatHistory() {
-    this.http.get<any[]>(`${environment.BACKEND_URL}/api/v0/games/${this.gameId}/chats`)
+    this.http.get<any[]>(`${getEnvironmentConfig().BACKEND_URL}/api/v0/games/${this.gameId}/chats`)
       .subscribe((chats ) => {
         this.chats.player1 = chats.find(c => c.playerId === PLAYER_1_ID)?.messages
         this.chats.player2 = chats.find(c => c.playerId === PLAYER_2_ID)?.messages
