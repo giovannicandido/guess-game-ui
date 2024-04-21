@@ -1,27 +1,22 @@
-# GuessGameUi
+![Deployment Status](https://github.com/giovannicandido/mercado-ui/actions/workflows/deploy-staging.yml/badge.svg?branch=main)
+![Pull Request](https://github.com/giovannicandido/mercado-ui/actions/workflows/pr.yml/badge.svg)
+[![DeepSource](https://deepsource.io/gh/giovannicandido/mercado-ui.svg/?label=active+issues&show_trend=true&token=VPKuFqZgaTj_Z50Lj9-nrl42)](https://deepsource.io/gh/giovannicandido/mercado-ui/?ref=repository-badge)
+# Guess Game UI
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 17.3.4.
+This project is the main user interface to operate mercado system.
 
 ## Development server
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The app will automatically reload if you change any of the source files.
 
-## Code scaffolding
+# Deployment Pipeline
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
+Every commit to the main branch is deployed to a staging environment.
 
-## Build
+Url Access: 
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
+This tag will be used to deploy the app in kubernetes, and can be used in query logs in New Relic like the following:
 
-## Running unit tests
-
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
-
-## Running end-to-end tests
-
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
-
-## Further help
-
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.io/cli) page.
+```text
+namespace_name:"" container_name:"guess-game-ui" "labels.app.kubernetes.io/version":"v20240421.1"
+```
