@@ -18,5 +18,5 @@ Url Access:
 This tag will be used to deploy the app in kubernetes, and can be used in query logs in New Relic like the following:
 
 ```text
-namespace_name:"" container_name:"guess-game-ui" "labels.app.kubernetes.io/version":"v20240421.3"
+namespace_name:"" container_name:"guess-game-ui" "labels.app.kubernetes.io/version":"v20240421.4"
 ```
