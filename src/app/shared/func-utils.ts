@@ -16,3 +16,7 @@ export function getEnvironmentConfig(): EnvironmentSettings {
   const env = getEnvironment()
   return environment[env];
 }
+
+export function nullOrUndefined(value: any) {
+  return value === null || value === undefined
+}

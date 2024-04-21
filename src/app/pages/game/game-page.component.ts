@@ -2,7 +2,7 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute } from "@angular/router";
 import { ToastrService } from "ngx-toastr";
 import { Chat, GuessChatRequest } from "../../model/game";
-import { getEnvironmentConfig } from "../../shared/func-utils";
+import { getEnvironmentConfig, nullOrUndefined } from "../../shared/func-utils";
 import { RxStomp, RxStompState } from "@stomp/rx-stomp";
 import { Subscription } from "rxjs";
 import { HttpClient } from "@angular/common/http";
@@ -323,8 +323,10 @@ export class GamePageComponent implements OnInit, OnDestroy {
   private loadChatHistory() {
     this.http.get<any[]>(`${getEnvironmentConfig().BACKEND_URL}/api/v0/games/${this.gameId}/chats`)
       .subscribe((chats ) => {
-        this.chats.player1 = chats.find(c => c.playerId === PLAYER_1_ID)?.messages
-        this.chats.player2 = chats.find(c => c.playerId === PLAYER_2_ID)?.messages
+        let messages = chats.find(c => c.playerId === PLAYER_1_ID)?.messages
+        this.chats.player1 = nullOrUndefined(messages) ? [] : messages
+        messages = chats.find(c => c.playerId === PLAYER_2_ID)?.messages
+        this.chats.player2 = nullOrUndefined(messages) ? [] : messages
       });
   }
 }
