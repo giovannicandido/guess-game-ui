@@ -1,6 +1,6 @@
 {
   "name": "guess-game-ui",
-  "version": "v20240421.5",
+  "version": "v20240421.6",
   "scripts": {
     "ng": "ng",
     "start": "ng serve --configuration development",
