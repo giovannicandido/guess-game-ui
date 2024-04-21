@@ -272,7 +272,7 @@ jobs:
           ref: ${{ vars.DEPLOYMENT_REF }}
 
       - name: Update version
-        run: ./update-version.sh mercado-ui ${{ needs.build-image.outputs.release_tag }}
+        run: ./update-version.sh game-ui ${{ needs.build-image.outputs.release_tag }}
       - name: gpg sign import
         uses: crazy-max/ghaction-import-gpg@v4
         with:
