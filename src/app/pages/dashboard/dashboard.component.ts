@@ -42,7 +42,7 @@ export class DashboardComponent implements OnInit {
       return;
     }
 
-    this.http.post<NewGameResponse>(`${getEnvironmentConfig().BACKEND_URL}/api/v0/games`, {
+    this.http.post<NewGameResponse>(`${getEnvironmentConfig().BACKEND_URL()}/api/v0/games`, {
       guessWord: this.gameWord,
       gameCategory: this.gameCategory
     }).subscribe(
@@ -53,7 +53,7 @@ export class DashboardComponent implements OnInit {
   }
 
   loadActiveGames() {
-    this.currentGames = this.http.get<any[]>(`${getEnvironmentConfig().BACKEND_URL}/api/v0/games`)
+    this.currentGames = this.http.get<any[]>(`${getEnvironmentConfig().BACKEND_URL()}/api/v0/games`)
   }
 
   boostrapValidaitonsSetup() {
@@ -73,7 +73,7 @@ export class DashboardComponent implements OnInit {
   }
 
   removeGame(id: string) {
-    this.http.delete(`${getEnvironmentConfig().BACKEND_URL}/api/v0/games/${id}`).subscribe(
+    this.http.delete(`${getEnvironmentConfig().BACKEND_URL()}/api/v0/games/${id}`).subscribe(
       (_) => this.loadActiveGames()
     )
   }

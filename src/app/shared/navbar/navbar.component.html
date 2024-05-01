@@ -23,7 +23,13 @@
         <select class="form-select" aria-label="Categoria" name="backendEnvironment" [(ngModel)]="backendEnvironment">
           <option value="PROD">Nuvem do professor</option>
           <option value="LOCAL">Teste Local</option>
+          <option value="CUSTOM">Customizado</option>
         </select>
+        <input type="text" class="form-control" name="backendUrl" label="Ip cutomizado"
+               title="Digite um numero IP"
+               data-bs-toggle="tooltip" data-bs-placement="left" data-bs-title="Digite um numero IP"
+               *ngIf="backendEnvironment() === 'CUSTOM'"
+               [(ngModel)]="backendUrl" />
       </form>
     </div>
   </div>

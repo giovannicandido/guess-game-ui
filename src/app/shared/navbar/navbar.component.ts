@@ -1,21 +1,23 @@
-import { Component, ElementRef, model, OnInit, Renderer2, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, model, OnInit, Renderer2, ViewChild } from '@angular/core';
 import { ROUTES } from '../../sidebar/sidebar.component';
 import { Router } from '@angular/router';
 import { Location } from '@angular/common';
-import { ENVIRONMENT_KEY, getEnvironment, getEnvironmentConfig } from "../func-utils";
+import { BACKEND_IP_ADDRESS_KEY, ENVIRONMENT_KEY, getEnvironment, getEnvironmentConfig } from "../func-utils";
+import * as bootstrap from 'bootstrap'
 
 @Component({
   selector: 'navbar-cmp',
   templateUrl: 'navbar.component.html'
 })
 
-export class NavbarComponent implements OnInit {
+export class NavbarComponent implements OnInit, AfterViewInit {
   private listTitles: any[];
   location: Location;
   private nativeElement: Node;
   private toggleButton;
   private sidebarVisible: boolean;
   backendEnvironment = model<string>("PROD")
+  backendUrl = model<string>("192.168.0.1")
 
   public isCollapsed = true;
   @ViewChild("navbar-cmp", {static: false}) button;
@@ -35,13 +37,27 @@ export class NavbarComponent implements OnInit {
     });
 
     const environment = getEnvironment()
+    const backendIP = localStorage.getItem(BACKEND_IP_ADDRESS_KEY)
+    const currentBackenUrl =  backendIP !== null ? backendIP : "192.168.0.1"
 
     this.backendEnvironment.set(environment)
+
+    this.backendUrl.set(currentBackenUrl)
 
     this.backendEnvironment.subscribe((value) => {
       console.log(`Mudando para ambiente: ${value}. Navegador precisa ser reiniciado`)
       localStorage.setItem(ENVIRONMENT_KEY, value)
     })
+
+    this.backendUrl.subscribe((value) => {
+      localStorage.setItem(BACKEND_IP_ADDRESS_KEY, value)
+    })
+
+  }
+
+  ngAfterViewInit() {
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+    const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
   }
 
   getTitle() {

@@ -1,10 +1,11 @@
 import { environment } from "../../environments/environment";
 
 export const ENVIRONMENT_KEY = "ENVIRONMENT"
-
+export const BACKEND_IP_ADDRESS_KEY = "BACKEND_IP_ADDRESS"
+export const SSL_KEY = "BACKEND_SSL"
 export interface EnvironmentSettings {
-  BACKEND_URL: string,
-  BACKEND_WS: string
+  BACKEND_URL: () => string,
+  BACKEND_WS: () => string
 }
 
 export function getEnvironment() {
