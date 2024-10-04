@@ -5,118 +5,206 @@ on:
     branches:
       - main
 env:
-  cache-name: cache-node-modules
+  OCI_CACHE_NAME: cache-node-modules
+  OCI_CACHE_BUCKET: ${{ vars.OCI_CACHE_BUCKET }}
 jobs:
   install-dependencies:
-    runs-on: ubuntu-latest
+    runs-on: k8s-vinhedo
+    container:
+      image: nexus.kugelbit.work/innerspace/github-actions-runner
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-      - uses: pnpm/action-setup@v2
+        uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9
       - name: Setup NodeJS
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'pnpm'
+          node-version: '20'
+      - uses: kugelbit-com/actions-cache@main
+        with:
+          endpoint: ${{ secrets.OCI_CACHE_S3_ENDPOINT }}
+          insecure: false
+          accessKey: ${{ secrets.OCI_CACHE_S3_ACCESS_KEY }}
+          secretKey: ${{ secrets.OCI_CACHE_S3_SECRET_KEY }}
+          bucket: ${{ env.OCI_CACHE_BUCKET }}
+          region: sa-vinhedo-1
+          use-fallback: false
+          key: ${{env.OCI_CACHE_NAME}}-${{ github.repository_id }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          path: |
+            node_modules
+            ~/.pnpm-store
+            .cache
+          restore-keys: |
+            ${{ env.OCI_CACHE_NAME }}-${{ github.repository_id }}-pnpm
       - name: Install dependencies
         run: pnpm install
       - name: Store pnpm-lock.yaml
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: cache-lock
           if-no-files-found: error
           path: |
             pnpm-lock.yaml
   test:
-    runs-on: ubuntu-latest
+    runs-on: k8s-vinhedo
+    container:
+      image: nexus.kugelbit.work/innerspace/github-actions-runner
     needs: install-dependencies
     steps:
-      - uses: actions/checkout@v3
+      - run: |
+          sudo apt install -y unzip libnss3 libnss3-dev \
+          fonts-liberation \
+          libasound2 \
+          libatk-bridge2.0-0 \
+          libatk1.0-0 \
+          libatspi2.0-0 \
+          libcups2 \
+          libdbus-1-3 \
+          libdrm2 \
+          libgbm1 \
+          libgtk-3-0 \
+          libnspr4 \
+          libnss3 \
+          libwayland-client0 \
+          libxcomposite1 \
+          libxdamage1 \
+          libxfixes3 \
+          libxkbcommon0 \
+          libxrandr2 \
+          xdg-utils \
+          libu2f-udev \
+          libvulkan1
+      - uses: browser-actions/setup-chrome@v1
+      - run: echo "CHROME_BIN=`which chrome`" >> $GITHUB_ENV
+      - uses: actions/checkout@v4
       - name: Download cache lock
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: cache-lock
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9
       - name: Setup NodeJS
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install
+          node-version: '20'
+      - uses: kugelbit-com/actions-cache/restore@main
+        with:
+          endpoint: ${{ secrets.OCI_CACHE_S3_ENDPOINT }}
+          insecure: false
+          accessKey: ${{ secrets.OCI_CACHE_S3_ACCESS_KEY }}
+          secretKey: ${{ secrets.OCI_CACHE_S3_SECRET_KEY }}
+          bucket: ${{ env.OCI_CACHE_BUCKET }}
+          region: sa-vinhedo-1
+          use-fallback: false
+          key: ${{env.OCI_CACHE_NAME}}-${{ github.repository_id }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          path: |
+            node_modules
+            ~/.pnpm-store
+            .cache
+          restore-keys: |
+            ${{ env.OCI_CACHE_NAME }}-${{ github.repository_id }}-pnpm
       - name: Test
         run: pnpm run test-ci
       - name: Upload test results and reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: build-reports
           if-no-files-found: error
           path: |
             build/
   build:
-    runs-on: ubuntu-latest
+    runs-on: k8s-vinhedo
+    container:
+      image: nexus.kugelbit.work/innerspace/github-actions-runner
     needs: install-dependencies
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Download cache lock
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: cache-lock
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9
       - name: Setup NodeJS
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install
+          node-version: '20'
+      - uses: kugelbit-com/actions-cache/restore@main
+        with:
+          endpoint: ${{ secrets.OCI_CACHE_S3_ENDPOINT }}
+          insecure: false
+          accessKey: ${{ secrets.OCI_CACHE_S3_ACCESS_KEY }}
+          secretKey: ${{ secrets.OCI_CACHE_S3_SECRET_KEY }}
+          bucket: ${{ env.OCI_CACHE_BUCKET }}
+          region: sa-vinhedo-1
+          use-fallback: false
+          key: ${{env.OCI_CACHE_NAME}}-${{ github.repository_id }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          path: |
+            node_modules
+            ~/.pnpm-store
+            .cache
+          restore-keys: |
+            ${{ env.OCI_CACHE_NAME }}-${{ github.repository_id }}-pnpm
       - name: Build
         run: pnpm run build-hom
       - name: Upload dist artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: artifacts
           if-no-files-found: error
           path: |
             dist/
   lint:
-    runs-on: ubuntu-latest
+    runs-on: k8s-vinhedo
+    container:
+      image: nexus.kugelbit.work/innerspace/github-actions-runner
     needs: install-dependencies
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Download cache lock
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: cache-lock
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9
       - name: Setup NodeJS
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install
+          node-version: '20'
+      - uses: kugelbit-com/actions-cache/restore@main
+        with:
+          endpoint: ${{ secrets.OCI_CACHE_S3_ENDPOINT }}
+          insecure: false
+          accessKey: ${{ secrets.OCI_CACHE_S3_ACCESS_KEY }}
+          secretKey: ${{ secrets.OCI_CACHE_S3_SECRET_KEY }}
+          bucket: ${{ env.OCI_CACHE_BUCKET }}
+          region: sa-vinhedo-1
+          use-fallback: false
+          key: ${{env.OCI_CACHE_NAME}}-${{ github.repository_id }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          path: |
+            node_modules
+            ~/.pnpm-store
+            .cache
+          restore-keys: |
+            ${{ env.OCI_CACHE_NAME }}-${{ github.repository_id }}-pnpm
       - name: Build
         run: pnpm run lint
   test-coverage-report:
-    runs-on: ubuntu-latest
+    runs-on: k8s-vinhedo
+    container:
+      image: nexus.kugelbit.work/innerspace/github-actions-runner
     needs: test
     env:
       DEEPSOURCE_DSN: ${{ secrets.DEEPSOURCE_DSN }}
     steps:
-      - uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/checkout@v4
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: build-reports
           path: ./build/

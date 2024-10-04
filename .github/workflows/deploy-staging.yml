@@ -1,19 +1,22 @@
-name: Release to Staging
+name: Release to SIT
 on:
   push:
     branches:
       - main
   workflow_dispatch:
 env:
-  cache-name: cache-node-modules
   IMAGE_NAME: guess-game-ui
-  REGISTRY_DOMAIN: ${{ vars.REGISTRY_DOMAIN }}
-  REGISTRY_URL: ${{ vars.REGISTRY_URL }}
+  REGISTRY_DOMAIN: ${{ vars.OCI_REGISTRY_DOMAIN }}
+  REGISTRY_URL: ${{ vars.OCI_REGISTRY_URL }}
   WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id}}
   WORKFLOW_REF: build ${{ github.run_id }} on ${{ github.ref_name }}
+  OCI_CACHE_NAME: cache-node-modules
+  OCI_CACHE_BUCKET: ${{ vars.OCI_CACHE_BUCKET }}
 jobs:
   install-dependencies:
-    runs-on: ubuntu-latest
+    runs-on: k8s-vinhedo
+    container:
+      image: nexus.kugelbit.work/innerspace/github-actions-runner
     steps:
       - name: Notify deployment start
         uses: zulip/github-actions-zulip/send-message@v1
@@ -28,143 +31,265 @@ jobs:
             ```spoiler :start:  Deploy started in ${{ env.WORKFLOW_REF }}
                Check the link [${{ env.WORKFLOW_URL }}](${{ env.WORKFLOW_URL }})
       - name: Checkout repo
-        uses: actions/checkout@v3
-      - uses: pnpm/action-setup@v2
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9
       - name: Setup NodeJS
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'pnpm'
+          node-version: '20'
+      - uses: kugelbit-com/actions-cache@main
+        with:
+          endpoint: ${{ secrets.OCI_CACHE_S3_ENDPOINT }}
+          insecure: false
+          accessKey: ${{ secrets.OCI_CACHE_S3_ACCESS_KEY }}
+          secretKey: ${{ secrets.OCI_CACHE_S3_SECRET_KEY }}
+          bucket: ${{ env.OCI_CACHE_BUCKET }}
+          region: sa-vinhedo-1
+          use-fallback: false
+          key: ${{env.OCI_CACHE_NAME}}-${{ github.repository_id }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          path: |
+            node_modules
+            ~/.pnpm-store
+            .cache
+          restore-keys: |
+            ${{ env.OCI_CACHE_NAME }}-${{ github.repository_id }}-pnpm
       - name: Install dependencies
         run: pnpm install
       - name: Store pnpm-lock.yaml
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: cache-lock
           if-no-files-found: error
           path: |
             pnpm-lock.yaml
   test:
-    runs-on: ubuntu-latest
+    runs-on: k8s-vinhedo
+    container:
+      image: nexus.kugelbit.work/innerspace/github-actions-runner
     needs: install-dependencies
     steps:
-      - uses: actions/checkout@v3
+      - run: |
+          sudo apt update &&
+          sudo apt install -y unzip libnss3 libnss3-dev \
+          fonts-liberation \
+          libasound2 \
+          libatk-bridge2.0-0 \
+          libatk1.0-0 \
+          libatspi2.0-0 \
+          libcups2 \
+          libdbus-1-3 \
+          libdrm2 \
+          libgbm1 \
+          libgtk-3-0 \
+          libnspr4 \
+          libnss3 \
+          libwayland-client0 \
+          libxcomposite1 \
+          libxdamage1 \
+          libxfixes3 \
+          libxkbcommon0 \
+          libxrandr2 \
+          xdg-utils \
+          libu2f-udev \
+          libvulkan1
+      - name: Setup browser
+        uses: browser-actions/setup-chrome@v1
+      - run: echo "CHROME_BIN=`which chrome`" >> $GITHUB_ENV
+      - uses: actions/checkout@v4
       - name: Download cache lock
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: cache-lock
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9
       - name: Setup NodeJS
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install
+          node-version: '20'
+      - uses: kugelbit-com/actions-cache/restore@main
+        with:
+          endpoint: ${{ secrets.OCI_CACHE_S3_ENDPOINT }}
+          insecure: false
+          accessKey: ${{ secrets.OCI_CACHE_S3_ACCESS_KEY }}
+          secretKey: ${{ secrets.OCI_CACHE_S3_SECRET_KEY }}
+          bucket: ${{ env.OCI_CACHE_BUCKET }}
+          region: sa-vinhedo-1
+          use-fallback: false
+          key: ${{env.OCI_CACHE_NAME}}-${{ github.repository_id }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          path: |
+            node_modules
+            ~/.pnpm-store
+            .cache
+          restore-keys: |
+            ${{ env.OCI_CACHE_NAME }}-${{ github.repository_id }}-pnpm
       - name: Test
         run: pnpm run test-ci
       - name: Upload test results and reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: build-reports
           if-no-files-found: error
           path: |
             build/
   build:
-    runs-on: ubuntu-latest
+    runs-on: k8s-vinhedo
+    container:
+      image: nexus.kugelbit.work/innerspace/github-actions-runner
     needs: install-dependencies
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Download cache lock
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: cache-lock
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9
       - name: Setup NodeJS
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install
+          node-version: '20'
+      - uses: kugelbit-com/actions-cache/restore@main
+        with:
+          endpoint: ${{ secrets.OCI_CACHE_S3_ENDPOINT }}
+          insecure: false
+          accessKey: ${{ secrets.OCI_CACHE_S3_ACCESS_KEY }}
+          secretKey: ${{ secrets.OCI_CACHE_S3_SECRET_KEY }}
+          bucket: ${{ env.OCI_CACHE_BUCKET }}
+          region: sa-vinhedo-1
+          use-fallback: false
+          key: ${{env.OCI_CACHE_NAME}}-${{ github.repository_id }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          path: |
+            node_modules
+            ~/.pnpm-store
+            .cache
+          restore-keys: |
+            ${{ env.OCI_CACHE_NAME }}-${{ github.repository_id }}-pnpm
       - name: Build
         run: pnpm run build-hom
       - name: Upload dist artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: artifacts
           if-no-files-found: error
           path: |
             dist/
   lint:
-    runs-on: ubuntu-latest
+    runs-on: k8s-vinhedo
+    container:
+      image: nexus.kugelbit.work/innerspace/github-actions-runner
     needs: install-dependencies
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Download cache lock
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: cache-lock
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9
       - name: Setup NodeJS
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install
+          node-version: '20'
+      - uses: kugelbit-com/actions-cache/restore@main
+        with:
+          endpoint: ${{ secrets.OCI_CACHE_S3_ENDPOINT }}
+          insecure: false
+          accessKey: ${{ secrets.OCI_CACHE_S3_ACCESS_KEY }}
+          secretKey: ${{ secrets.OCI_CACHE_S3_SECRET_KEY }}
+          bucket: ${{ env.OCI_CACHE_BUCKET }}
+          region: sa-vinhedo-1
+          use-fallback: false
+          key: ${{env.OCI_CACHE_NAME}}-${{ github.repository_id }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          path: |
+            node_modules
+            ~/.pnpm-store
+            .cache
+          restore-keys: |
+            ${{ env.OCI_CACHE_NAME }}-${{ github.repository_id }}-pnpm
       - name: Build
         run: pnpm run lint
+  test-coverage-report:
+    runs-on: k8s-vinhedo
+    container:
+      image: nexus.kugelbit.work/innerspace/github-actions-runner
+    needs: test
+    env:
+      DEEPSOURCE_DSN: ${{ secrets.DEEPSOURCE_DSN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-reports
+          path: ./build/
+      - name: Report test-coverage to DeepSource
+        run: |
+          # Install the CLI
+          curl https://deepsource.io/cli | sh
+
+          # Send the report to DeepSource
+          ./bin/deepsource report --analyzer test-coverage --key javascript --value-file build/coverage/cobertura/cobertura-coverage.xml
 
   build-image:
-    runs-on: ubuntu-latest
-    needs: [ build ]
+    runs-on: k8s-vinhedo
+    container:
+      image: nexus.kugelbit.work/innerspace/github-actions-runner
+    needs: [ build, lint, test, test-coverage-report ]
     outputs:
       release_tag: ${{ steps.generate_release_tag.outputs.release_tag }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Download artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: artifacts
           path: dist/
-      - name: Install depot
-        run: |
-          curl -L https://depot.dev/install-cli.sh | sudo env DEPOT_INSTALL_DIR=/usr/local/bin sh
       - name: Login to OCIR
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY_DOMAIN }}
-          username: ${{ secrets.REGISTRY_USER }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
+          username: ${{ secrets.OCI_REGISTRY_USER }}
+          password: ${{ secrets.OCI_REGISTRY_PASSWORD }}
       - name: Generate new version number
         id: generate_release_tag
         uses: giovannicandido/next-release-tag@master
         with:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          github_token: "${{ secrets.GITHUB_TOKEN }}"
           tag_prefix: 'v'
           use_tag: true
       - name: Echo release version
         run: echo $IMAGE_VERSION
         env:
           IMAGE_VERSION: ${{ steps.generate_release_tag.outputs.release_tag }}
-      - name: Build and tag image
-        env:
-          IMAGE_VERSION: ${{ steps.generate_release_tag.outputs.release_tag }}
-          DEPOT_TOKEN: ${{ secrets.DEPOT_TOKEN }}
-          DEPOT_PROJECT_ID: ${{ vars.DEPOT_PROJECT_ID }}
-        run: |
-          depot build --push --platform linux/arm64,linux/amd64 -t ${REGISTRY_URL}/${IMAGE_NAME}:${IMAGE_VERSION} .
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_PAT }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          version: "lab:latest"
+          driver: cloud
+          endpoint: "kugelbit/vinhedo"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.generate_release_tag.outputs.release_tag }}
+          # For pull requests, export results to the build cache.
+          # Otherwise, push to a registry.
+          outputs: ${{ github.event_name == 'pull_request' && 'type=cacheonly' || 'type=registry,push=true' }}
       - name: Notify deployment failure
         if: failure()
         uses: zulip/github-actions-zulip/send-message@v1
@@ -180,22 +305,21 @@ jobs:
                Check the link [${{ env.WORKFLOW_URL }}](${{ env.WORKFLOW_URL }})
 
   release-code:
-    runs-on: ubuntu-latest
+    runs-on: k8s-vinhedo
+    container:
+      image: nexus.kugelbit.work/innerspace/github-actions-runner
     needs: [build-image]
     permissions:
       contents: write
       packages: read
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.COMMIT_TOKEN }}
       - name: Echo release version
         run: echo $IMAGE_VERSION
         env:
           IMAGE_VERSION: ${{ needs.build-image.outputs.release_tag }}
-      - name: Install gettext
-        run: sudo apt-get install -y gettext
       - name: Update README.md
         env:
           PROJECT_VERSION: ${{ needs.build-image.outputs.release_tag }}
@@ -205,34 +329,34 @@ jobs:
       - name: Update project version
         run: chmod +x update-project-version.sh && ./update-project-version.sh ${{ needs.build-image.outputs.release_tag }}
       - name: gpg sign import
-        uses: crazy-max/ghaction-import-gpg@v4
+        uses: crazy-max/ghaction-import-gpg@v6
         with:
           gpg_private_key: ${{ secrets.GPG_SIGN_KEY }}
           passphrase: ${{ secrets.GPG_SIGN_PASSWORD }}
           git_config_global: true
           git_user_signingkey: true
           git_commit_gpgsign: true
+          git_committer_email: ${{ vars.KUGELBIT_BOT_EMAIL }}
+          git_committer_name: ${{ vars.KUGELBIT_BOT_NAME }}
       - name: Commit new project version
-        uses: stefanzweifel/git-auto-commit-action@v4
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: Automated Change [skip ci]
-          commit_user_name: Kugelbit Github Bot
-          commit_user_email: githubbot@kugelbit.com
+          commit_message: "Automated Change: deploy ${{ needs.build-image.outputs.release_tag }} [skip ci]"
+          commit_user_name: ${{ vars.KUGELBIT_BOT_NAME }}
+          commit_user_email: ${{ vars.KUGELBIT_BOT_EMAIL }}
       - name: Get current git commit after updated version
         id: gitenv
         shell: bash
         run: |
-          echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-          echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
-          echo "::set-output name=sha::$(git rev-parse HEAD)"
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
       - name: Create Release
         uses: ncipollo/release-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           prerelease: true
           generateReleaseNotes: true
           commit: ${{ steps.gitenv.outputs.sha }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           body: |
             ## Info
             Commit ${{ github.sha }} was deployed to `staging`. [See code diff](${{ github.event.compare }}).
@@ -260,63 +384,21 @@ jobs:
   start-staging-deployment:
     runs-on: ubuntu-latest
     needs: [ release-code, build-image ]
-    permissions:
-      contents: write
+    env:
+      environment: sit
+      app: guess-game-ui
+      version_tag: ${{ needs.build-image.outputs.release_tag }}
+      HELM_CHARTS_REPOSITORY: ${{ vars.HELM_CHARTS_REPOSITORY }}
     steps:
-      - name: Checkout deployment code
-        uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.COMMIT_TOKEN }}
-          fetch-depth: 0
-          repository: ${{ vars.DEPLOYMENT_REPOSITORY }}
-          ref: ${{ vars.DEPLOYMENT_REF }}
-
-      - name: Update version
-        run: ./update-version.sh game-ui ${{ needs.build-image.outputs.release_tag }}
-      - name: gpg sign import
-        uses: crazy-max/ghaction-import-gpg@v4
-        with:
-          gpg_private_key: ${{ secrets.GPG_SIGN_KEY }}
-          passphrase: ${{ secrets.GPG_SIGN_PASSWORD }}
-          git_config_global: true
-          git_user_signingkey: true
-          git_commit_gpgsign: true
-      - name: Commit new project version
-        uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: Automated Change Release ${{ needs.build-image.outputs.release_tag }}
-          commit_user_name: Kugelbit Github Bot
-          commit_user_email: githubbot@kugelbit.com
-      - name: Get current git commit after updated version
-        id: gitenv
-        shell: bash
+      - run: echo "Starting deployment of version ${{ env.version_tag }}"
+      - name: Fire event
         run: |
-          echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-          echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
-          echo "::set-output name=sha::$(git rev-parse HEAD)"
-      - name: Notify deployment failure
-        if: failure()
-        uses: zulip/github-actions-zulip/send-message@v1
-        with:
-          api-key: ${{ secrets.ZULIP_API_KEY }}
-          email: "github-bot@zulip.kugelbit.com"
-          organization-url: "https://zulip.kugelbit.com"
-          to: "notifications"
-          type: "stream"
-          topic: "builds/${{ github.repository }}"
-          content: |
-            ```spoiler :cross_mark:  Deploy failure in ${{ env.WORKFLOW_REF }} :tag: ${{ needs.build-image.outputs.release_tag }}
-               Check the link [${{ env.WORKFLOW_URL }}](${{ env.WORKFLOW_URL }})
-      - name: Notify deployment finished
-        if: success()
-        uses: zulip/github-actions-zulip/send-message@v1
-        with:
-          api-key: ${{ secrets.ZULIP_API_KEY }}
-          email: "github-bot@zulip.kugelbit.com"
-          organization-url: "https://zulip.kugelbit.com"
-          to: "notifications"
-          type: "stream"
-          topic: "builds/${{ github.repository }}"
-          content: |
-            ```spoiler :check:  Deploy finished in ${{env.WORKFLOW_REF }} :tag: ${{ needs.build-image.outputs.release_tag }}
-               Check the link [${{ env.WORKFLOW_URL }}](${{ env.WORKFLOW_URL }})
+          curl -L --fail \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.WORKFLOW_APP_HELM_CHARTS_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ env.HELM_CHARTS_REPOSITORY }}/dispatches \
+            -d '{"event_type":"dispatch-event", "client_payload": {"env": "${{ env.environment }}", "app": "${{ env.app }}", "version": "${{ env.version_tag }}"}}'
+      - run: echo "Check ${{ env.HELM_CHARTS_REPOSITORY }} for wokflow and commit with version ${{ env.version_tag }}"
+

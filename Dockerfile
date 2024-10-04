@@ -5,8 +5,8 @@ COPY ./default.conf /etc/nginx/conf.d/default.conf
 
 WORKDIR /app
 
-USER nginx
-EXPOSE 8080
-COPY dist/guess-game-ui/browser/. ./
+USER 101
+EXPOSE 9001
+COPY dist/guess-game-ui/. ./
 
 CMD ["nginx", "-g", "daemon off;"]
