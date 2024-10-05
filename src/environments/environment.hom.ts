@@ -6,8 +6,8 @@ export const environment = {
     BACKEND_WS: () => 'ws://localhost:8080',
   },
   PROD: {
-    BACKEND_URL:  () => "https://guess-game-api-hom.gsilva.pro",
-    BACKEND_WS: () => "wss://guess-game-api-hom.gsilva.pro"
+    BACKEND_URL:  () => "http://api.sit.kugelbit.work/guess-game",
+    BACKEND_WS: () => "ws://api.sit.kugelbit.work/guess-game"
   },
   CUSTOM: {
     BACKEND_URL: () => `${httpProtocol()}${localStorage.getItem(BACKEND_IP_ADDRESS_KEY)}`,

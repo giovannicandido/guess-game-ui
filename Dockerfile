@@ -1,12 +1,21 @@
-FROM quay.io/nginx/nginx-unprivileged:stable
+FROM caddy:2.8-alpine
 
-COPY ./nginx.conf /etc/nginx/nginx.conf
-COPY ./default.conf /etc/nginx/conf.d/default.conf
+ARG UNAME=caddy
+ARG GID=1000
+ARG UID=1000
 
-WORKDIR /app
+RUN addgroup -g $GID $UNAME
+RUN adduser -h /site -u $UID -G $UNAME -D -s /bin/ash $UNAME
+COPY Caddyfile /etc/caddy/Caddyfile
+RUN chown -R $UNAME /config
 
-USER 101
-EXPOSE 9001
-COPY dist/guess-game-ui/. ./
+USER $GID
+WORKDIR /srv
+COPY ./dist/guess-game-ui/browser/. .
 
-CMD ["nginx", "-g", "daemon off;"]
+EXPOSE 8080
+EXPOSE 8443
+EXPOSE 8443/udp
+EXPOSE 2019
+
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
